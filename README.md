@@ -2,6 +2,8 @@
 
 Converts javascript to MX's RISC architecture
 
+mx.com/cpu
+
 ## Limitations:
 Can only handle simple addtion (a + b)
 
