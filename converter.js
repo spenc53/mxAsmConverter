@@ -140,15 +140,20 @@ function variableDeclarator(ast, env) {
 // TODO: add support for i++
 // write optimizer that changes i++ to i = i + 1; this way i don't have to write edge cases
 function forStatement(ast, env) {
-    var initCommands = parse(ast.init, env);
-    var testCommands = parse(ast.test, env);
-    var updateCommand = parse(ast.update, env);
+    newParams = {}
+    for (var elem in env.params) {
+        newParams[elem] = env.params[elem];
+    }
 
     newEnv = {
-        "params": env.params,
+        "params": newParams,
         "memLocation": env.memLocation,
         "commands": []
     }
+
+    var initCommands = parse(ast.init, newEnv);
+    var testCommands = parse(ast.test, newEnv);
+    var updateCommand = parse(ast.update, newEnv);
     var bodyCommmands = parse(ast.body, newEnv);
 
     // need the memory location of the for loop
@@ -166,20 +171,20 @@ function forStatement(ast, env) {
 
 function addStatement(ast, env) {
     env.memLocation--;
-    var rightCommands = parse(ast.right, env); // move it into the acc
-    var leftCommands = parse(ast.left, env); // move it into the acc
+    var rightCommands = parse(ast.right, env);
+    var leftCommands = parse(ast.left, env);
     var commands = rightCommands.concat([MOVE_ACC_TO_MEM, numToHex(env.memLocation)]);
     commands = commands.concat(leftCommands);
     commands = commands.concat(ADD_MEM_TO_ACC, numToHex(env.memLocation));
     env.memLocation++;
-    return commands; // return sum in acc
+    return commands;
 }
 
 function notEquals(ast, env) {
     var memLocation = env.memLocation;
     var leftCommands = parse(ast.left, env);
-    var rightCommands = parse(ast.right, env); // move it into the acc
-    rightCommands = rightCommands.concat([MOVE_ACC_TO_MEM, numToHex(memLocation)]); // move it into 00
+    var rightCommands = parse(ast.right, env);
+    rightCommands = rightCommands.concat([MOVE_ACC_TO_MEM, numToHex(memLocation)]);
     var commands = [].concat(rightCommands);
     commands = commands.concat(leftCommands)
     commands = commands.concat([JMP_IF_ACC_EQ_MEM, numToHex(memLocation)]);
