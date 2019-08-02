@@ -24,6 +24,9 @@ STOP = "00";
 
 MAX_MEMORY = 16;
 
+//update so you have to delcare variables
+//TODO: throw errors with reason why it doesn't work
+
 //get program
 function convertToAssembly(str) {
     let ast = acorn.parse(str);
@@ -108,6 +111,7 @@ function returnStatement(ast, env) {
     ]);
 }
 
+//TODO: do not allow for variables that are not in the map;
 function assignmentStatement(ast, env) {
     var commands = []
     if (!env.params[ast.left.name]) {
@@ -123,16 +127,13 @@ function assignmentStatement(ast, env) {
     return commands.concat(rightCommands.concat([MOVE_ACC_TO_MEM, numToHex(leftVar)]));
 }
 
+// TODO: add support for i++
+// write optimizer that changes i++ to i = i + 1; this way i don't have to write edge cases
 function forStatement(ast, env) {
-    //need the commands so far...
-    // init 
-    var initCommands = parse(ast.init, env); // this should be the commands so far?
-
-    var testCommands = notEquals(ast.test, env); // need to do in here because of jmp
-                                            // but jump is the last command
+    var initCommands = parse(ast.init, env);
+    var testCommands = notEquals(ast.test, env);
     var updateCommand = assignmentStatement(ast.update, env);
-    // run update command in here
-    // run block expression
+
     newEnv = {
         "params": env.params,
         "memLocation": env.memLocation,
@@ -140,34 +141,47 @@ function forStatement(ast, env) {
     }
     var bodyCommmands = parse(ast.body, newEnv);
 
-    var startForLoopLoc = env.commands.concat(initCommands).concat(testCommands).length - 4;
+    // need the memory location of the for loop
+    var startForLoopLoc = env.commands.concat(initCommands).concat(testCommands).length - 4; // subtract 4, (2) for moving, (2) for the check w/o the other jmp yet
     var jmpToStart = [SET_PC_TO_BYTE, numToHex(startForLoopLoc)];
 
-    var currPointer = env.commands.concat(initCommands).concat(updateCommand).concat(testCommands).concat(bodyCommmands).concat(jmpToStart).length + 1;
+    // find the end of the for loop
+    var currPointer = env.commands.concat(initCommands).concat(updateCommand).concat(testCommands).concat(bodyCommmands).concat(jmpToStart).length + 1; // add 1 so we out of the for loop
 
+    // finish the test command with where to jump if equals
     var testCommands = testCommands.concat([numToHex(currPointer)]);
 
     return [].concat(initCommands).concat(testCommands).concat(updateCommand).concat(bodyCommmands).concat(jmpToStart);
 }
 
+//TODO: clean up addStatement and notEqualsStatement if possible
+//TODO: allow for (1 + 1) + 1
+// the add statement leaves the result in ACC...
+// that would work since the left commands would result with that being in ACC
+//TODO: write optimzir that changes AST that expands 1 + 1 + 1 to something managable by this
+//rewrite this
 function addStatement(ast, env) {
-    // get left // assume not a function for now
+    // TODO: OPTIMZE BY USING THE COUNTER?
+    // WILL RUN INTO ISSUES IF I WANT TO USE THE COUTNER FOR FOR LOOP
     var memLocation = env.memLocation
     var leftCommand = [];
     var rightCommand = [];
 
-    var left = -1;
-    var right = -1;
+    var left = -1; // this will be the eventual memory location of the left value
+    var right = -1;// this will be the eventual memory location of the right value
 
-    if (isLiteral(ast.left)) {
-        left = memLocation; // variable location of left
+    // TODO: optimize just by setting the left to the ACC since we know it needs to go there
+    // change this to call the parse function, would allow for nested additions
+    if (isLiteral(ast.left)) { // if the left side is a literal, we need to get memory for it and set the value
+        left = memLocation;
         leftCommand = saveLiteral(ast.left, memLocation)
         memLocation--;
     } else {
-        left = env.params[ast.left.name] // variable location of left
+        left = env.params[ast.left.name]
     }
 
-    if (isLiteral(ast.right)) {
+    // TODO: Optimize if literal, have option to add the value directly to the ACC
+    if (isLiteral(ast.right)) { // if the left side is a literal, we need to get memory for it and set the value
         right = memLocation;
         rightCommand = saveLiteral(ast.right, memLocation)
         memLocation--;
@@ -186,8 +200,6 @@ function addStatement(ast, env) {
 }
 
 function notEquals(ast, env) {
-    // if not equals...
-    // get left // assume not a function for now
     var memLocation = env.memLocation
     var leftCommand = [];
     var rightCommand = [];
@@ -243,8 +255,9 @@ function numToHex(num) {
     return hex;
 }
 
-convertToAssembly(`
-function fib(n) {
+
+
+fib = `function fib(n) {
     prev = 0
     curr = 1
     next = 3
@@ -254,5 +267,10 @@ function fib(n) {
         curr = next
     }
     return prev
-}
-`);
+}`
+
+sum = `function sum(a, b) {
+    return a + b
+}`
+
+convertToAssembly(sum);
