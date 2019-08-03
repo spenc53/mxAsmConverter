@@ -39,6 +39,7 @@ function convertToAssembly(str) {
     env['params'] = paramMap;
     env['memLocation'] = memoryLocation;
     env['commands'] = [];
+    env['pc'] = 0
     funcBody = body["body"]
     
     output = parse(funcBody, env);
@@ -134,7 +135,7 @@ function variableDeclarator(ast, env) {
     if (ast.init) {
         ast.raw = ast.init.value;
     }
-    return saveLiteral(ast, numToHex(env.params[variableName]))
+    return saveLiteral(ast, numToHex(env.params[variableName]), env)
 }
 
 // TODO: add support for i++
@@ -145,6 +146,7 @@ function forStatement(ast, env) {
         newParams[elem] = env.params[elem];
     }
 
+
     newEnv = {
         "params": newParams,
         "memLocation": env.memLocation,
@@ -154,14 +156,18 @@ function forStatement(ast, env) {
     var initCommands = parse(ast.init, newEnv);
     var testCommands = parse(ast.test, newEnv);
     var updateCommand = parse(ast.update, newEnv);
-    var bodyCommmands = parse(ast.body, newEnv);
+
 
     // need the memory location of the for loop
-    var startForLoopLoc = env.commands.concat(initCommands).concat(testCommands).length - 4; // subtract 4, (2) for moving, (2) for the check w/o the other jmp yet
+    var startForLoopLoc = env.pc + env.commands.concat(initCommands).concat(testCommands).length - 8; // subtract 4, (2) for moving, (2) for the check w/o the other jmp yet
     var jmpToStart = [SET_PC_TO_BYTE, numToHex(startForLoopLoc)];
+    
+    newEnv['pc'] = env.pc + env.commands.concat(initCommands).concat(testCommands).concat(updateCommand).length + 1; 
+
+    var bodyCommmands = parse(ast.body, newEnv);
 
     // find the end of the for loop
-    var currPointer = env.commands.concat(initCommands).concat(updateCommand).concat(testCommands).concat(bodyCommmands).concat(jmpToStart).length + 1; // add 1 so we out of the for loop
+    var currPointer = env.pc + env.commands.concat(initCommands).concat(updateCommand).concat(testCommands).concat(bodyCommmands).concat(jmpToStart).length + 1; // add 1 so we out of the for loop
 
     // finish the test command with where to jump if equals
     var testCommands = testCommands.concat([numToHex(currPointer)]);
@@ -170,34 +176,38 @@ function forStatement(ast, env) {
 }
 
 function addStatement(ast, env) {
+    var memLocation = env.memLocation;
     env.memLocation--;
     var rightCommands = parse(ast.right, env);
     var leftCommands = parse(ast.left, env);
-    var commands = rightCommands.concat([MOVE_ACC_TO_MEM, numToHex(env.memLocation)]);
+    var commands = rightCommands.concat([MOVE_ACC_TO_MEM, numToHex(memLocation)]);
     commands = commands.concat(leftCommands);
-    commands = commands.concat(ADD_MEM_TO_ACC, numToHex(env.memLocation));
+    commands = commands.concat(ADD_MEM_TO_ACC, numToHex(memLocation));
     env.memLocation++;
     return commands;
 }
 
 function notEquals(ast, env) {
     var memLocation = env.memLocation;
+    env.memLocation--;
     var leftCommands = parse(ast.left, env);
     var rightCommands = parse(ast.right, env);
     rightCommands = rightCommands.concat([MOVE_ACC_TO_MEM, numToHex(memLocation)]);
     var commands = [].concat(rightCommands);
     commands = commands.concat(leftCommands)
     commands = commands.concat([JMP_IF_ACC_EQ_MEM, numToHex(memLocation)]);
+    env.memLocation++;
     return commands;
 }
 
-function saveLiteral(ast, memLoc) {
-    return [ 
-        MOVE_ACC_TO_MEM, "00",                          // save acc in 00
+function saveLiteral(ast, memLoc, env) {
+    var commands = [ 
+        MOVE_ACC_TO_MEM, numToHex(env.memLocation),                          // save acc in 00
         SET_ACC_TO_LITERAL, numToHex(ast.raw),          // save literal to acc
         MOVE_ACC_TO_MEM, numToHex(memLoc),              // move literal to memory
-        MOVE_MEM_TO_ACC, "00"                           // move original acc back
+        MOVE_MEM_TO_ACC, numToHex(env.memLocation)                           // move original acc back
         ];
+    return commands;
 }
 
 function numToHex(num) {
@@ -234,4 +244,38 @@ function asdf() {
 }
 `
 
-convertToAssembly(fib);
+thing = `
+function thing(n) {
+    var c = 0
+    for (var i = 0; i != n; i = i + 1) {
+        for (var j = 0; j != n; j = j + 1) {
+            c = c + 1
+        }
+    }
+    return c
+}
+`
+
+simpleFor = `
+function thing(n) {
+    var c = 0
+    for (var i = 0; i != n; i = i + 1) {
+        c = c + 1
+    }
+    return c
+}
+`
+
+convertToAssembly(thing);
+
+/*
+0: D2 0D D1 00 D2 0E D0 0D // init c to 0
+8: D2 0C D1 00 D2 0D D0 0C // init i to 0
+16: D0 0F D2 0C D0 0D B2 0C 2F //move n to 0C and then move i to acc and check
+D1 01 D2 0C // set mem  slot to 1
+D0 0D C0 0C D2 0D // increment i
+D1 01 D2 0C D0 0E C0 0C D2 0E // increment C
+B1 14 // jump to line HEX 14 == 16 + 4 = 20
+D0 0E D2 00 // move c to 00
+00 // return
+*/
