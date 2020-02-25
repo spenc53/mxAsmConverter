@@ -233,7 +233,7 @@ fib = `function fib(n) {
 }`
 
 sum = `function sum(a, b) {
-    return a + a + b
+    return a + b
 }`
 
 asdf = `
@@ -266,7 +266,17 @@ function thing(n) {
 }
 `
 
-convertToAssembly(thing);
+testIf = `
+function test() {
+    var c = 1;
+    if (c == 1) {
+        return 1
+    }
+    return 0
+}
+`
+
+convertToAssembly(testIf);
 
 /*
 0: D2 0D D1 00 D2 0E D0 0D // init c to 0
