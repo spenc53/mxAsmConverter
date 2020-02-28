@@ -55,11 +55,15 @@ function parse(ast, env) {
             return variableDeclarator(ast, env);
         case "ReturnStatement":
             return returnStatement(ast, env);
+        case "IfStatement":
+            return ifStatement(ast, env)
         case "BinaryExpression":
             if (ast.operator == "+") {
                 return addStatement(ast, env);
             } else if(ast.operator == "!=") {
                 return notEquals(ast, env)
+            } else if (ast.operator == "==") {
+                return isEquals(ast, env)
             }
             throw Error('Operator "' + ast.operator + '" not suppored')
         case "BlockStatement":
@@ -76,6 +80,7 @@ function parse(ast, env) {
         case "Identifier":
             return [MOVE_MEM_TO_ACC, numToHex(env.params[ast.name])];
         default:
+            console.log(ast)
             throw Error(type + " is not supported");
     }
 }
@@ -187,17 +192,68 @@ function addStatement(ast, env) {
     return commands;
 }
 
-function notEquals(ast, env) {
-    var memLocation = env.memLocation;
-    env.memLocation--;
-    var leftCommands = parse(ast.left, env);
-    var rightCommands = parse(ast.right, env);
-    rightCommands = rightCommands.concat([MOVE_ACC_TO_MEM, numToHex(memLocation)]);
-    var commands = [].concat(rightCommands);
-    commands = commands.concat(leftCommands)
-    commands = commands.concat([JMP_IF_ACC_EQ_MEM, numToHex(memLocation)]);
-    env.memLocation++;
-    return commands;
+function notEquals(ast, env) { // B2 MEM_LOCATION {MISSING THIS BUT DESTINATION}
+    var memLocation = env.memLocation;  // get free memory location
+    env.memLocation--;  // say we are using it
+    var leftCommands = parse(ast.left, env); // parse the left hand side
+    var rightCommands = parse(ast.right, env); // parse the right hand side
+    rightCommands = rightCommands.concat([MOVE_ACC_TO_MEM, numToHex(memLocation)]); // move acc into the memory location
+    var commands = [].concat(rightCommands); // execute right hand side
+    commands = commands.concat(leftCommands); // execute left hand side
+    commands = commands.concat([JMP_IF_ACC_EQ_MEM, numToHex(memLocation)]); // add the check if ACC == MEMORY LOCATION
+    env.memLocation++; // free up the used memory location
+    return commands; // return the commands
+}
+
+function isEquals(ast, env) {
+    // how does this differ?
+    // if == jmp
+    // so what if it's equal we jmp to the body
+    // otherwise we jmp to the end
+    // we know length of the if statement
+    // we should know the previous commands
+    // if right + left then jmp (memLocation) length + 1 (Self) + 3 (next jmp command)
+    // the next jump command end location will be determined by the caller
+
+
+    var memLocation = env.memLocation;  // get free memory location
+    env.memLocation--;  // say we are using it
+    var leftCommands = parse(ast.left, env); // parse the left hand side
+    var rightCommands = parse(ast.right, env); // parse the right hand side
+    rightCommands = rightCommands.concat([MOVE_ACC_TO_MEM, numToHex(memLocation)]); // move acc into the memory location
+    var commands = [].concat(rightCommands); // execute right hand side
+    commands = commands.concat(leftCommands); // execute left hand side
+
+
+    var currPointer = env.pc + env.commands.concat(commands).length + 5;
+    var jmpCommand = [JMP_IF_ACC_EQ_MEM, numToHex(memLocation), numToHex(currPointer)];
+    // other wise
+    var jmpIfNotEqual = [SET_PC_TO_BYTE];
+
+
+
+    commands = commands.concat(jmpCommand).concat(jmpIfNotEqual); // add the check if ACC == MEMORY LOCATION
+    env.memLocation++; // free up the used memory location
+    return commands; // return the commands
+}
+
+function ifStatement(ast, env) { // what should this do? first off, parse the command, parse the body
+    // parse the command
+    var testCommands = parse(ast.test, env);
+    // parse the body
+    var bodyCommands = parse(ast.consequent, env);
+    // find ending location
+
+    console.log(testCommands);
+    console.log(bodyCommands);
+
+    // what to do?
+
+    // do I need the pc?
+    var currPointer = env.pc + env.commands.concat(testCommands).concat(bodyCommands).length + 3; // add 1 so we out of the for loop
+    var testCommands = testCommands.concat([numToHex(currPointer)]);
+
+    return [].concat(testCommands).concat(bodyCommands);
 }
 
 function saveLiteral(ast, memLoc, env) {
@@ -268,7 +324,7 @@ function thing(n) {
 
 testIf = `
 function test() {
-    var c = 1;
+    var c = 0;
     if (c == 1) {
         return 1
     }
@@ -289,3 +345,10 @@ B1 14 // jump to line HEX 14 == 16 + 4 = 20
 D0 0E D2 00 // move c to 00
 00 // return
 */
+
+// so an if statement would parse the binary expression
+// then it would need to run the check?
+    // what does for statment look like
+    // wouldn't need the start of the loop
+    // just the check
+// other wise it should jump to after the end of the if block

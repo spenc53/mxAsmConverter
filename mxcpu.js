@@ -214,5 +214,5 @@ state = {
   registers: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 
 };
 
-interpret("D0 0E D2 0D D0 0F C0 0D D2 00 00", state)
+interpret("D2 0E D1 00 D2 0F D0 0E D1 01 D2 0E D0 0F B2 0E 13 B1 17 D1 01 D2 00 00 D1 00 D2 00 00", state)
 print_state_decimal(state)
